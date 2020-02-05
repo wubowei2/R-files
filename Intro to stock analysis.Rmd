@@ -1,0 +1,126 @@
+## Library relevant packages
+```{r}
+options(warn = -1)
+library(TTR)
+library(devtools)
+library(IKTrading)
+library(quantmod)
+library(blotter)
+library(quantstrat)
+library(PerformanceAnalytics)
+library(ggplot2)
+```
+
+## Get the stock price of Amazon
+```{r}
+getSymbols("AMZN", from = "2010-01-01", to = Sys.Date())
+```
+
+## Visualisation of the stock price
+```{r}
+chartSeries(Ad(AMZN))
+```
+
+## Visualise stock price daily, and add indicators
+```{r}
+chartSeries(AMZN, theme = 'white', TA = c(addMACD(), addVo(), addRSI()), subset = 'last 3 years')
+addTA(SMA(AMZN$AMZN.Close, n = 200), on = 1, col = 'blue')
+addTA(SMA(AMZN$AMZN.Close, n = 120), on = 1, col = 'purple')
+addTA(SMA(AMZN$AMZN.Close, n = 60), on = 1, col = 'yellow')
+addTA(SMA(AMZN$AMZN.Close, n = 30), on = 1, col = 'black')
+addTA(SMA(AMZN$AMZN.Close, n = 20), on = 1, col = 'green')
+addTA(SMA(AMZN$AMZN.Close, n = 10), on = 1, col = 'red')
+addTA(SMA(AMZN$AMZN.Close, n = 5), on = 1, col = 'darkblue')
+```
+
+## Visualise stock price monthly 
+```{r}
+AMZN_month = to.monthly(AMZN)
+
+chartSeries(AMZN_month, theme = 'white', TA = c(addMACD(), addVo(), addRSI()))
+addTA(SMA(AMZN_month$AMZN.Close, n = 120), on = 1, col = 'purple')
+addTA(SMA(AMZN_month$AMZN.Close, n = 60), on = 1, col = 'yellow')
+addTA(SMA(AMZN_month$AMZN.Close, n = 30), on = 1, col = 'black')
+addTA(SMA(AMZN_month$AMZN.Close, n = 20), on = 1, col = 'green')
+addTA(SMA(AMZN_month$AMZN.Close, n = 10), on = 1, col = 'red')
+addTA(SMA(AMZN_month$AMZN.Close, n = 5), on = 1, col = 'darkblue')
+```
+
+## Visualise stock price yearly
+```{r}
+# Yearly Price
+AMZN_year = to.yearly(AMZN)
+
+chartSeries(AMZN_year, theme = 'white')
+addTA(SMA(AMZN_year$AMZN.Close, n = 10), on = 1, col = 'red')
+addTA(SMA(AMZN_year$AMZN.Close, n = 5), on = 1, col = 'darkblue')
+
+```
+
+## Find the highest and lowest adjusted price with its date
+```{r}
+AMZN[which(AMZN$AMZN.Adjusted == max(AMZN$AMZN.Adjusted)),]
+
+AMZN[which(AMZN$AMZN.Adjusted == min(AMZN$AMZN.Adjusted)),]
+```
+
+## Subset the data set, if we only want 2019 stock price
+```{r}
+AMZN2019 = subset(AMZN, index(AMZN) > "2019-01-01")
+```
+
+## Visualise the log return in 2019
+```{r}
+AMZN2019_log_return = dailyReturn(Ad(AMZN2019), type = 'log')
+
+ggplot(AMZN2019_log_return, aes(x=index(AMZN2019_log_return), y=daily.returns)) + geom_line(col = 'darkblue')
+```
+
+
+## Add indicators as columns to our data set for future use
+```{r}
+AMZN$SMA5 = SMA(AMZN$AMZN.Close, n = 5)
+AMZN$SMA10 = SMA(AMZN$AMZN.Close, n = 10)
+AMZN$SMA20 = SMA(AMZN$AMZN.Close, n = 20)
+AMZN$SMA30 = SMA(AMZN$AMZN.Close, n =30)
+AMZN$SMA60 = SMA(AMZN$AMZN.Close, n = 60)
+AMZN$SMA120 = SMA(AMZN$AMZN.Close, n = 120)
+AMZN$SMA200 = SMA(AMZN$AMZN.Close, n =200)
+```
+
+
+## Buy Sell Signal
+```{r}
+region = sigComparison("", data = AMZN2019, columns = c("SMA5", "SMA10"), relationship = "gt") - 
+  sigComparison("", data = AMZN2019, columns = c("SMA5", "SMA10"), relationship = "lt")
+
+table(region)
+
+sig = diff(region)/2
+```
+
+This trading strategy is based on Moving average crossover. I set the SMA5 as the fast one and the SMA10 as the slow one. This strategy tells us we will buy the stock when the SMA5 crossover SMA10, otherwise we will sell it.
+
+## Visualise the signal
+```{r}
+plot(sig, ylim = c(-2, 2))
+```
+
+Visualising the signal showing our action of trading stock. '-1' means we are selling the stock and '1' tells we are buying that stock. 
+## Profit
+```{r}
+profit = as.vector(Cl(AMZN2019)[sig == -1])[-1] - Cl(AMZN2019[sig == 1])[-table(sig)[["1"]]]
+
+sum(profit)
+```
+
+
+
+
+
+
+
+
+
+
+
