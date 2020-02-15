@@ -1,0 +1,94 @@
+## library relevant packages
+library(TTR)
+library(IKTrading)
+library(quantmod)
+library(PerformanceAnalytics)
+library('ggplot2')
+library(blotter)
+library(devtools)
+library(quantstrat)
+rm(list = ls(.blotter), envir = .blotter) # Clear blotter
+
+currency('AUD') # Currency being used
+
+Sys.setenv(TZ = "UTC") # Allows quantstrat to use timestamps
+
+getSymbols("AMZN", from = "2010-01-01", to = "2019-12-20")
+
+AMZN_adj = adjustOHLC(AMZN)
+
+stock("AMZN_adj", currency = 'AUD', multiplier = 1)
+
+initDate = "2010-01-01"
+
+strategy_st <- portfolio_st <- account_st <- "SMAC-5-10"
+
+# Ensure no portfolio and strategy exists
+rm.strat(portfolio_st)
+rm.strat(strategy_st)
+
+# Initialise porfolio
+# The porrtolio only contain AMZN
+initPortf(portfolio_st, 'AMZN_adj', initDate = initDate, currency = 'AUD')
+
+# Initialise account
+initAcct(account_st, portfolios = portfolio_st, initDate = initDate, currency = 'AUD' ,initEq = 100000)
+
+# Initialise orders
+initOrders(portfolio = portfolio_st, store = TRUE)
+
+# Define strategy
+strategy(strategy_st, store = TRUE)
+
+# Define trading rules
+# Add indicators
+add.indicator(strategy = strategy_st, name = "SMA", arguments = list(x = quote(Cl(mktdata)), n = 5), label = 'fastMA')
+
+add.indicator(strategy = strategy_st, name = "SMA", arguments = list(x = quote(Cl(mktdata)), n = 10), label = 'slowMA')
+
+# Add signal
+add.signal(strategy = strategy_st, name = 'sigComparison', arguments = list(columns = c('fastMA', 'slowMA'), relationship = "gt"), label = "bull")
+
+add.signal(strategy = strategy_st, name = 'sigComparison', arguments = list(columns = c('fastMA', 'slowMA'), relationship = "lt"), label = "bear")
+
+# Add rule
+
+add.rule(strategy = strategy_st, name = "ruleSignal", arguments = list(sigcol = "bull", 
+                                                                       sigval = TRUE, 
+                                                                       ordertype = "market",
+                                                                       orderside = "long",
+                                                                       replace = FALSE,
+                                                                       prefer = "Open",
+                                                                       osFUN = osMaxDollar,
+                                                                       maxSize = quote(floor(getEndEq(account_st, Date = timestamp) * .1)),
+                                                                       tradeSize = quote(floor(getEndEq(account_st, Date = timestamp) * .1))),
+                                                                       type = "enter", path.dep = TRUE, label = "buy")
+
+add.rule(strategy = strategy_st, name = "ruleSignal", arguments = list(sigcol = "bear", 
+                                                                       sigval = TRUE, 
+                                                                       orderqty = 'all',
+                                                                       ordertype = "market",
+                                                                       orderside = "long",
+                                                                       replace = FALSE,
+                                                                       prefer = "Open"), 
+                                                                       type = "exit", path.dep = TRUE, label = "sell")
+
+applyStrategy(strategy_st, portfolios = portfolio_st)
+
+# Finalise the investigation
+updatePortf(portfolio_st)
+
+dateRange = time(getPortfolio(portfolio_st)$summary)[-1]
+updateAcct(portfolio_st, dateRange)
+
+updateEndEq(account_st)
+
+tStats = tradeStats(Portfolios = portfolio_st, use = "trade", inclZeroDays = FALSE)
+
+tStats[, 4:ncol(tStats)] = round(tStats[, 4:ncol(tStats)], 3)
+
+print(data.frame(t(tStats[, -c(1, 2)])))
+
+final_acct = getAccount(account_st)
+
+plot(final_acct$summary$End.Eq)
